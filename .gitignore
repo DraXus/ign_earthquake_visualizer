@@ -1,0 +1,22 @@
+# Entornos y cachés de Python
+.venv/
+.venv*/
+__pycache__/
+*.py[cod]
+.matplotlib_cache/
+
+# Mosaicos del mapa
+.map_cache/
+
+# Catálogos y archivos generados
+*.csv
+*.mp4
+*.png
+*.jpg
+*.jpeg
+
+# Editores y sistema operativo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

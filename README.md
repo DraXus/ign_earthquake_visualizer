@@ -1,102 +1,64 @@
-# Visualizador de terremotos del IGN
+# Actividad sísmica en Granada
 
-Genera un vídeo MP4 cuadrado y cronológico a partir de un catálogo de terremotos descargado del [Instituto Geográfico Nacional](https://www.ign.es/).
+Visualizador web móvil de los terremotos del catálogo del [Instituto Geográfico Nacional](https://www.ign.es/) y de las fallas cuaternarias de la base QAFI. También incluye un generador de vídeo MP4 para redes sociales.
 
-El resultado está pensado para redes sociales: mapa fijo en escala de grises, burbujas cuyo tamaño y color representan la magnitud, contador de eventos, fecha, atribución de datos y marca de agua.
+La web publicada estará disponible en <https://draxus.github.io/ign_earthquake_visualizer/>.
 
-## Características
+## Web y actualización de datos
 
-- Salida MP4 H.264 en formato cuadrado.
-- Resolución predeterminada de 1080×1080, 30 FPS y 30 segundos.
-- Mapa de OpenStreetMap descargado y almacenado en caché local.
-- Fondo en escala de grises para resaltar los terremotos.
-- Tamaño y color de cada burbuja asociados a su magnitud.
-- Animación cronológica acumulativa con pulso para el evento más reciente.
-- Textos y fechas en español de España.
-- Lectura de CSV en UTF-8, Windows-1252 y Latin-1.
-- Opciones para limitar eventos o comenzar en el primer terremoto que supere una magnitud.
+El workflow `.github/workflows/deploy-pages.yml` consulta el catálogo oficial del IGN y publica la web en GitHub Pages:
 
-## Requisitos
+- Se ejecuta al subir cambios a `main`, manualmente y cada 12 horas (00:17 y 12:17 UTC).
+- Consulta desde el 14/08/2026 hasta la fecha actual en la zona horaria de Madrid.
+- Limita los resultados al área metropolitana de Granada: latitud 36.95–37.35 y longitud -3.90–-3.40.
+- Valida las columnas y el contenido antes de publicar.
+- Normaliza el resultado como CSV UTF-8 delimitado por punto y coma.
+- Genera `data/catalogue.csv` únicamente dentro del artefacto de Pages; no crea commits automáticos.
+- Si la descarga o la validación falla, la publicación se detiene y la versión anterior permanece disponible.
 
-- Python 3.10 o posterior.
-- Conexión a Internet en la primera ejecución para descargar los mosaicos del mapa.
+La visualización conserva el campo `Tipo Mag.` del IGN. Las magnitudes `mbLg` y `Mw` se muestran como series independientes, con colores, rangos y filtros propios; no se presentan como si pertenecieran a una única escala equivalente.
 
-FFmpeg se instala mediante `imageio-ffmpeg`; no es necesario instalarlo por separado.
+Cuando el IGN proporciona `Int. max.`, un anillo independiente muestra la intensidad máxima EMS-98. Esta capa puede ocultarse y su leyenda aclara que el anillo identifica el evento, no la extensión geográfica de los efectos.
 
-## Instalación
+Para activar el despliegue por primera vez, abre **Settings → Pages** en GitHub y elige **GitHub Actions** como fuente.
+
+### Actualización local
+
+```powershell
+python -m pip install -r requirements-update.txt
+python scripts/fetch_ign_catalogue.py --output data/catalogue.csv
+python -m http.server 8000
+```
+
+Después abre <http://localhost:8000>. Para probar una fecha final concreta:
+
+```powershell
+python scripts/fetch_ign_catalogue.py --output data/catalogue.csv --end-date 19/08/2026
+```
+
+Las pruebas del actualizador se ejecutan con:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+## Generación de vídeo
+
+Requiere Python 3.10 o posterior. Instala sus dependencias y genera el vídeo con:
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-```
-
-En Linux o macOS, activa el entorno con:
-
-```bash
-source .venv/bin/activate
-```
-
-## Uso
-
-Generación estándar:
-
-```powershell
 python render_earthquakes.py catalogo.csv -o terremotos.mp4
 ```
 
-Para omitir el tramo inicial anterior al primer terremoto de magnitud 3:
+Consulta todas las opciones con `python render_earthquakes.py --help`.
 
-```powershell
-python render_earthquakes.py catalogo.csv -o terremotos.mp4 --start-magnitude 3
-```
-
-Prueba rápida con los 10 primeros eventos seleccionados:
-
-```powershell
-python render_earthquakes.py catalogo.csv -o prueba.mp4 `
-  --duration 10 --fps 15 --size 540 `
-  --start-magnitude 3 --max-events 10
-```
-
-### Opciones principales
-
-| Opción | Valor predeterminado | Descripción |
-|---|---:|---|
-| `-o`, `--output` | `earthquake_animation.mp4` | Archivo MP4 de salida. |
-| `--duration` | `30` | Duración del vídeo en segundos. |
-| `--fps` | `30` | Fotogramas por segundo. |
-| `--size` | `1080` | Anchura y altura del vídeo cuadrado. |
-| `--cache-dir` | `.map_cache` | Directorio de caché de los mosaicos. |
-| `--map-style` | `grayscale` | Estilo `grayscale` o `color`. |
-| `--max-events` | Sin límite | Usa únicamente los primeros N eventos seleccionados. |
-| `--start-magnitude` | Desactivado | Omite el tramo anterior al primer evento que alcance la magnitud indicada. |
-
-Consulta todas las opciones con:
-
-```powershell
-python render_earthquakes.py --help
-```
-
-## Formato del CSV
-
-El archivo debe estar delimitado por punto y coma, coma o tabulador y contener estas columnas obligatorias:
-
-- `Fecha`, en formato `DD/MM/AAAA`.
-- `Hora`, en formato `HH:MM:SS`.
-- `Latitud`.
-- `Longitud`.
-- `Mag.`.
-
-También se reconocen `Evento`, `Prof. (Km)`, `Inten.`, `Tipo Mag.` y `Localización`. Los espacios sobrantes de encabezados y valores se eliminan automáticamente. Las filas inválidas se descartan con un aviso.
-
-## Archivos generados
-
-Los vídeos, imágenes de comprobación, mosaicos descargados y catálogos CSV no se incluyen en Git. Cada usuario aporta su propio catálogo del IGN.
+El CSV debe incluir `Fecha`, `Hora`, `Latitud`, `Longitud` y `Mag.`. Puede estar delimitado por punto y coma, coma o tabulador, y codificado como UTF-8, Windows-1252 o Latin-1.
 
 ## Atribución
 
 - Datos sísmicos: Instituto Geográfico Nacional (IGN).
-- Mapa: © colaboradores de OpenStreetMap.
-
-El vídeo muestra la atribución abreviada `Datos: IGN | Mapa: OSM`.
+- Fallas: base QAFI del Instituto Geológico y Minero de España (IGME-CSIC).
+- Mapa: colaboradores de OpenStreetMap.

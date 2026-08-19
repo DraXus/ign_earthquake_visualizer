@@ -10,6 +10,7 @@ __pycache__/
 
 # Catálogos y archivos generados
 *.csv
+_site/
 *.mp4
 *.png
 *.jpg

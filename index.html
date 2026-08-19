@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Actividad sísmica en Granada</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body { margin: 0; background: #17202a; font-family: Inter, Arial, sans-serif; }
+    #map { width: 100vw; height: 100vh; height: 100dvh; margin: 0; background: #e5e5e5; }
+    .leaflet-tile-pane .leaflet-tile { filter: grayscale(1) contrast(.82) brightness(1.08); }
+    .map-header { position: fixed; z-index: 1000; top: max(8px, env(safe-area-inset-top)); left: 8px; right: 8px; pointer-events: none; }
+    .map-header-inner { display: inline-block; max-width: 100%; padding: 9px 11px; background: rgba(23, 32, 42, .9); color: #fff; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; backdrop-filter: blur(8px); }
+    .map-header h1 { margin: 0; font-size: 14px; line-height: 1.15; letter-spacing: .045em; }
+    .map-header p { margin: 4px 0 0; color: #d9e2ea; font-size: 11px; line-height: 1.2; }
+    .map-header .event-stats { margin-top: 3px; color: #9fd7e5; font-weight: 700; }
+    .options-control { margin: 0 !important; }
+    .map-options { width: min(292px, calc(100vw - 74px)); overflow: hidden; background: rgba(23, 32, 42, .93); color: #fff; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.24); backdrop-filter: blur(9px); }
+    .map-options > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; font-weight: 800; letter-spacing: .07em; cursor: pointer; list-style: none; }
+    .map-options > summary::-webkit-details-marker { display: none; }
+    .map-options > summary::after { content: "+"; font-size: 20px; font-weight: 400; }
+    .map-options[open] > summary::after { content: "−"; }
+    .options-content { max-height: calc(100dvh - 170px); overflow-y: auto; padding: 0 12px 11px; border-top: 1px solid rgba(255,255,255,.12); }
+    .control-section { padding-top: 10px; }
+    .control-section + .control-section { margin-top: 8px; border-top: 1px solid rgba(255,255,255,.1); }
+    .control-section h2 { margin: 0 0 8px; font-size: 11px; letter-spacing: .09em; }
+    .magnitude-legend { display: grid; gap: 9px; }
+    .magnitude-series { display: grid; gap: 5px; padding: 7px; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; }
+    .magnitude-series label { display: flex; min-height: 28px; align-items: center; gap: 7px; cursor: pointer; font-size: 12px; }
+    .magnitude-series input { width: 17px; height: 17px; margin: 0; }
+    .magnitude-series-name { font-weight: 800; }
+    .magnitude-series-count { margin-left: auto; color: #b8c3cc; font-size: 10px; }
+    .magnitude-filter { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px; }
+    .magnitude-filter label { min-height: 0; color: #d9e2ea; font-size: 10px; cursor: default; }
+    .magnitude-filter output { min-width: 28px; color: #fff; font-size: 11px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+    .magnitude-filter input[type="range"] { grid-column: 1 / -1; width: 100%; height: 18px; margin: 0; cursor: pointer; accent-color: #00d9ff; }
+    .magnitude-bubbles { height: 28px; display: flex; align-items: center; justify-content: space-around; }
+    .magnitude-bubble { display: block; flex: 0 0 auto; border-radius: 50%; border: 1.5px solid white; opacity: .9; box-shadow: 0 2px 7px rgba(0,0,0,.24); }
+    .magnitude-bubble.mw { border-radius: 2px; transform: rotate(45deg); box-shadow: 0 0 0 4px rgba(255,176,0,.22), 0 2px 7px rgba(0,0,0,.3); }
+    .magnitude-values { display: flex; justify-content: space-between; color: #fff; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .magnitude-note { margin: 0; color: #b8c3cc; font-size: 10px; line-height: 1.35; }
+    .intensity-control > label { display: flex; min-height: 36px; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; }
+    .intensity-control input { width: 18px; height: 18px; margin: 0; accent-color: #ffd166; }
+    .intensity-legend { display: grid; grid-template-columns: auto 1fr; gap: 5px 8px; align-items: center; color: #d9e2ea; font-size: 10px; }
+    .intensity-ring-swatch { display: inline-block; width: 22px; height: 12px; border: 2px solid currentColor; border-radius: 50%; background: transparent; }
+    .map-footer { width: calc(100vw - 16px); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin: 0 8px 8px !important; }
+    .attribution { flex: 1 1 190px; min-width: 0; padding: 5px 7px; background: rgba(23, 32, 42, .88); color: #fff; border-radius: 7px; font-size: 9px; line-height: 1.35; }
+    .attribution a { color: #aeeeff; text-decoration: none; }
+    .attribution a:hover { text-decoration: underline; }
+    .fault-layer-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+    .fault-swatch { display: inline-block; width: 24px; height: 4px; vertical-align: middle; }
+    .fault-swatch.active { background: #00d9ff; box-shadow: 0 0 6px rgba(0, 217, 255, .7); }
+    .fault-swatch.debated { background: #ffb000; box-shadow: 0 0 6px rgba(255, 176, 0, .65); }
+    .fault-control label { display: flex; min-height: 38px; align-items: center; gap: 8px; cursor: pointer; }
+    .fault-control input { width: 18px; height: 18px; margin: 0; accent-color: #00d9ff; }
+    .linkedin-banner { flex: 0 0 auto; }
+    .linkedin-banner a { display: block; padding: 8px 9px; background: #0a66c2; color: #fff; border-radius: 7px; font-size: 10px; font-weight: 800; letter-spacing: .02em; text-decoration: none; }
+    .linkedin-banner a:hover { background: #004182; }
+    .quake-tooltip { background: #17202a; border: 0; color: white; border-radius: 3px; box-shadow: none; padding: 8px 10px; }
+    .quake-tooltip::before { display: none; }
+    .quake-mw-icon { background: transparent; border: 0; }
+    .quake-mw-halo { position: relative; width: 30px; height: 30px; border: 1px solid rgba(255,176,0,.65); border-radius: 50%; background: rgba(255,176,0,.1); }
+    .quake-mw-diamond { position: absolute; top: 50%; left: 50%; border: 1.5px solid #fff; border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); box-shadow: 0 2px 7px rgba(0,0,0,.32); }
+    .leaflet-control-attribution { display: none; }
+    .leaflet-top.leaflet-right { top: calc(max(8px, env(safe-area-inset-top)) + 76px); right: 8px; }
+    .leaflet-bottom { bottom: env(safe-area-inset-bottom); }
+    @media (min-width: 768px) {
+      .map-header { left: 8px; right: auto; }
+      .map-header-inner { padding: 12px 15px; border-radius: 8px; }
+      .map-header h1 { font-size: clamp(19px, 2vw, 25px); }
+      .map-header p { font-size: 13px; }
+      .leaflet-top.leaflet-right { top: 8px; right: 8px; }
+      .map-options { width: 300px; }
+      .map-footer { width: auto; max-width: calc(100vw - 20px); flex-wrap: nowrap; margin: 0 10px 10px !important; }
+      .attribution { padding: 6px 9px; font-size: 11px; }
+      .linkedin-banner a { padding: 8px 11px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="map-header">
+    <div class="map-header-inner">
+      <h1>ACTIVIDAD SÍSMICA EN GRANADA</h1>
+      <p id="event-period" aria-live="polite">Cargando periodo temporal…</p>
+      <p id="event-summary" class="event-stats" aria-live="polite">Cargando catálogo…</p>
+    </div>
+  </header>
+  <main id="map" aria-label="Mapa estático de actividad sísmica"></main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+        // Generated every 12 hours by the GitHub Pages workflow.
+        const CATALOGUE_URL = "data/catalogue.csv";
+
+    const map = L.map("map", { attributionControl: false, zoomControl: false });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, subdomains: "abc", crossOrigin: true
+    }).addTo(map);
+    function createFaultPane(name, zIndex, interactive = false) {
+      const pane = map.createPane(name);
+      pane.style.zIndex = zIndex;
+      pane.style.pointerEvents = interactive ? "auto" : "none";
+    }
+    createFaultPane("faults-active", 450);
+    createFaultPane("faults-debated", 451);
+    createFaultPane("intensity-rings", 440);
+    createFaultPane("quake-symbols", 460, true);
+    const QAFI_REST_URL = "https://mapas.igme.es/gis/rest/services/BasesDatos/IGME_QAFI/MapServer";
+    // Official ArcGIS REST layer IDs from the IGME-CSIC QAFI v4 service.
+    const QAFI_LAYER_IDS = Object.freeze({ demonstrated: 0, debated: 1 });
+    function createFaultLayer(layerId, pane, color) {
+      const layer = L.geoJSON(null, { pane, style: { color, weight: 3, opacity: .95 } });
+      const query = `${QAFI_REST_URL}/${layerId}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson`;
+      fetch(query)
+        .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+        .then(data => layer.addData(data))
+        .catch(error => console.warn(`No se pudo cargar la capa QAFI ${layerId}:`, error));
+      return layer;
+    }
+    const activeFaults = createFaultLayer(QAFI_LAYER_IDS.demonstrated, "faults-active", "#00d9ff").addTo(map);
+    const debatedFaults = createFaultLayer(QAFI_LAYER_IDS.debated, "faults-debated", "#ffb000");
+    const faultLayers = { active: activeFaults, debated: debatedFaults };
+
+    function addControl(position, html, className, setup) {
+      const control = L.control({ position });
+      control.onAdd = () => {
+        const node = L.DomUtil.create("div", className);
+        node.innerHTML = html;
+        L.DomEvent.disableClickPropagation(node);
+        if (setup) setup(node);
+        return node;
+      };
+      control.addTo(map);
+      return control;
+    }
+
+    function normalize(value) {
+      return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    }
+
+    function parseIntensity(value) {
+      const clean = (value || "").trim().toUpperCase().replace(/–/g, "-");
+      const numeric = Number(clean.replace(",", "."));
+      if (Number.isFinite(numeric)) return numeric > 0 ? numeric : null;
+      const roman = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
+      const parts = clean.split("-").map(part => roman[part]);
+      if (!parts.length || parts.some(part => !part)) return null;
+      return parts.reduce((sum, part) => sum + part, 0) / parts.length;
+    }
+
+    function romanIntensity(value) {
+      const roman = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+      const lower = Math.floor(value), upper = Math.ceil(value);
+      if (lower < 1 || upper > 12) return format(value);
+      return lower === upper ? roman[lower] : `${roman[lower]}–${roman[upper]}`;
+    }
+
+    function intensityColor(value) {
+      if (value <= 2) return "#9bd7ff";
+      if (value <= 4) return "#ffd166";
+      if (value <= 6) return "#ff7a00";
+      return "#ef476f";
+    }
+
+    function parseCatalogue(text) {
+      const rows = text.trim().split(/\r?\n/).map(line => line.split(";").map(value => value.trim()));
+      const headers = rows.shift().map(normalize);
+      const column = name => headers.findIndex(header => header === name || header.startsWith(name));
+      // Some IGN exports contain a malformed character in "Localización";
+      // the shared prefix keeps location labels usable in those files too.
+      const latitude = column("latitud"), longitude = column("longitud"), magnitude = column("mag"), magnitudeType = column("tipo mag"), intensity = column("inten"), date = column("fecha"), time = column("hora"), location = column("localizaci");
+      return rows.map(row => ({
+        lat: Number(row[latitude].replace(",", ".")), lon: Number(row[longitude].replace(",", ".")),
+        magnitude: Number(row[magnitude].replace(",", ".")), magnitudeType: row[magnitudeType] || "Sin especificar", intensity: parseIntensity(row[intensity]),
+        date: row[date], time: row[time], location: row[location] || "Sin localización"
+      })).filter(event => Number.isFinite(event.lat) && Number.isFinite(event.lon) && Number.isFinite(event.magnitude));
+    }
+
+    function colorFor(value, minimum, maximum, colors) {
+      const t = maximum === minimum ? .5 : (value - minimum) / (maximum - minimum);
+      const scaled = Math.max(0, Math.min(1, t)) * (colors.length - 1);
+      const index = Math.floor(scaled), mix = scaled - index, start = colors[index], end = colors[Math.min(index + 1, colors.length - 1)];
+      return `rgb(${start.map((channel, i) => Math.round(channel + (end[i] - channel) * mix)).join(",")})`;
+    }
+
+    function radiusFor(value, minimum, maximum) {
+      const relative = maximum === minimum ? .5 : Math.max(0, Math.min(1, (value - minimum) / (maximum - minimum)));
+      return 5 + relative * 7;
+    }
+    function format(value) { return value.toFixed(1).replace(".", ","); }
+    function escapeHTML(value) {
+      const node = document.createElement("span");
+      node.textContent = value;
+      return node.innerHTML;
+    }
+    function catalogueDate(value) {
+      const [day, month, year] = value.split("/").map(Number);
+      return new Date(Date.UTC(year, month - 1, day));
+    }
+    function formatPeriod(events) {
+      const dates = events.map(event => catalogueDate(event.date)).filter(date => Number.isFinite(date.getTime()));
+      if (!dates.length) return "Periodo no disponible";
+      const first = new Date(Math.min(...dates)), last = new Date(Math.max(...dates));
+      const formatter = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+      const label = date => formatter.format(date).replace(/\./g, "");
+      return first.getTime() === last.getTime() ? label(first) : `${label(first)} – ${label(last)}`;
+    }
+
+    fetch(CATALOGUE_URL)
+      .then(response => response.ok ? response.text() : Promise.reject(new Error("No se encontró el catálogo")))
+      .then(text => {
+        const events = parseCatalogue(text);
+        if (!events.length) throw new Error("El catálogo no contiene eventos válidos");
+        document.querySelector("#event-period").textContent = formatPeriod(events);
+        const paletteFor = type => type === "Mw"
+          ? [[112, 28, 96], [255, 176, 0]]
+          : type === "mbLg" ? [[0, 83, 112], [0, 217, 255]] : [[90, 90, 90], [230, 230, 230]];
+        const eventsByType = events.reduce((groups, event) => {
+          (groups[event.magnitudeType] ||= []).push(event);
+          return groups;
+        }, {});
+        const magnitudeLayers = {};
+        const series = Object.entries(eventsByType).map(([type, typeEvents]) => {
+          const values = typeEvents.map(event => event.magnitude);
+          const minimum = Math.min(...values), maximum = Math.max(...values);
+          return { type, events: typeEvents, markers: [], minimum, maximum, threshold: minimum, enabled: true, colors: paletteFor(type) };
+        }).sort((a, b) => b.events.length - a.events.length);
+        const intensityLayer = L.layerGroup().addTo(map);
+        function refreshIntensityLayer() {
+          intensityLayer.clearLayers();
+          series.forEach(group => {
+            if (!group.enabled) return;
+            group.markers
+              .filter(item => item.magnitude >= group.threshold && item.intensityRing)
+              .forEach(item => item.intensityRing.addTo(intensityLayer));
+          });
+        }
+        const bounds = [];
+        series.forEach(group => {
+          const layer = L.layerGroup().addTo(map);
+          magnitudeLayers[group.type] = layer;
+          group.events.forEach(event => {
+            bounds.push([event.lat, event.lon]);
+            const radius = radiusFor(event.magnitude, group.minimum, group.maximum);
+            const fillColor = colorFor(event.magnitude, group.minimum, group.maximum, group.colors);
+            const marker = group.type === "Mw"
+              ? L.marker([event.lat, event.lon], {
+                  pane: "quake-symbols",
+                  icon: L.divIcon({
+                    className: "quake-mw-icon",
+                    html: `<div class="quake-mw-halo"><i class="quake-mw-diamond" style="width:${radius * 1.55}px;height:${radius * 1.55}px;background:${fillColor}"></i></div>`,
+                    iconSize: [30, 30], iconAnchor: [15, 15]
+                  })
+                })
+              : L.circleMarker([event.lat, event.lon], {
+                  pane: "quake-symbols",
+                  radius, color: "rgba(255,255,255,.72)", weight: 1.1, opacity: .72,
+                  fillColor, fillOpacity: .48
+                });
+            const intensityText = event.intensity === null ? "" : `<br>Intensidad máx. EMS-98: <strong>${romanIntensity(event.intensity)}</strong>`;
+            marker.bindTooltip(`<strong>${escapeHTML(event.magnitudeType)} ${format(event.magnitude)}</strong>${intensityText}<br>${event.date} · ${event.time}<br>${escapeHTML(event.location)}`, { className: "quake-tooltip", direction: "top", offset: [0, -5] }).addTo(layer);
+            const intensityRing = event.intensity === null ? null : L.circleMarker([event.lat, event.lon], {
+              pane: "intensity-rings", radius: group.type === "Mw" ? 18 : radius + 4,
+              fill: false, color: intensityColor(event.intensity), weight: 2.5, opacity: .95,
+              interactive: false
+            });
+            group.markers.push({ magnitude: event.magnitude, marker, intensityRing });
+          });
+        });
+        refreshIntensityLayer();
+        const wideLayout = window.matchMedia("(min-width: 768px)").matches;
+        map.fitBounds(bounds, {
+          paddingTopLeft: [24, wideLayout ? 72 : 82],
+          paddingBottomRight: [wideLayout ? 324 : 24, wideLayout ? 58 : 72],
+          maxZoom: 12
+        });
+        document.querySelector("#event-summary").textContent = `${events.length} eventos · ${series.map(group => `${group.type} ${format(group.minimum)}–${format(group.maximum)}`).join(" · ")}`;
+        const magnitudeLegend = series.map(group => {
+          const samples = [group.minimum, (group.minimum + group.maximum) / 2, group.maximum];
+          return `<div class="magnitude-series">
+            <label><input type="checkbox" data-magnitude-type="${escapeHTML(group.type)}" checked style="accent-color:${colorFor(group.maximum, group.minimum, group.maximum, group.colors)}"><span class="magnitude-series-name">${escapeHTML(group.type)}</span><span class="magnitude-series-count">${group.events.length} eventos</span></label>
+            <div class="magnitude-bubbles" aria-hidden="true">${samples.map(value => `<i class="magnitude-bubble ${group.type === "Mw" ? "mw" : ""}" style="width:${radiusFor(value, group.minimum, group.maximum) * (group.type === "Mw" ? 1.55 : 2)}px;height:${radiusFor(value, group.minimum, group.maximum) * (group.type === "Mw" ? 1.55 : 2)}px;background:${colorFor(value, group.minimum, group.maximum, group.colors)};opacity:${group.type === "Mw" ? .95 : .55}"></i>`).join("")}</div>
+            <div class="magnitude-values">${samples.map(value => `<span>${format(value)}</span>`).join("")}</div>
+            <div class="magnitude-filter">
+              <label for="magnitude-${escapeHTML(group.type)}">Magnitud mínima</label><output for="magnitude-${escapeHTML(group.type)}">${format(group.minimum)}</output>
+              <input id="magnitude-${escapeHTML(group.type)}" type="range" data-magnitude-filter="${escapeHTML(group.type)}" min="${group.minimum}" max="${group.maximum}" step="0.1" value="${group.minimum}" ${group.minimum === group.maximum ? "disabled" : ""} aria-label="Magnitud mínima ${escapeHTML(group.type)}">
+            </div>
+          </div>`;
+        }).join("");
+        const intensityCount = events.filter(event => event.intensity !== null).length;
+        addControl("topright", `<details class="map-options">
+          <summary>CAPAS Y LEYENDA</summary>
+          <div class="options-content">
+            <section class="control-section"><h2>TIPO DE MAGNITUD · IGN</h2><div class="magnitude-legend">
+              ${magnitudeLegend}
+              <p class="magnitude-note">Círculos: mbLg. Rombos con halo: Mw. El tamaño y el tono solo se comparan dentro de cada forma; mbLg y Mw no son directamente equivalentes.</p>
+            </div></section>
+            <section class="control-section intensity-control"><h2>INTENSIDAD MÁXIMA · EMS-98</h2>
+              <label><input type="checkbox" data-intensity-layer checked><span>Mostrar anillos</span><span class="magnitude-series-count">${intensityCount}/${events.length} eventos</span></label>
+              <div class="intensity-legend" aria-label="Leyenda de intensidad máxima">
+                <i class="intensity-ring-swatch" style="color:#9bd7ff"></i><span>I–II · débil o apenas sentido</span>
+                <i class="intensity-ring-swatch" style="color:#ffd166"></i><span>III–IV · sentido claramente</span>
+                <i class="intensity-ring-swatch" style="color:#ff7a00"></i><span>V–VI · efectos más importantes</span>
+                <i class="intensity-ring-swatch" style="color:#ef476f"></i><span>VII+ · daños potenciales</span>
+              </div>
+              <p class="magnitude-note">El anillo indica la intensidad máxima reportada, no la extensión del área afectada.</p>
+            </section>
+            <section class="control-section fault-control"><h2>ACTIVIDAD CUATERNARIA · QAFI v4</h2>
+              <label title="Fallas con evidencia de actividad durante los últimos 2,6 millones de años"><input type="checkbox" data-fault-layer="active" checked><span class="fault-layer-label"><i class="fault-swatch active"></i>Actividad demostrada</span></label>
+              <label title="La evidencia de actividad cuaternaria está actualmente en debate"><input type="checkbox" data-fault-layer="debated"><span class="fault-layer-label"><i class="fault-swatch debated"></i>Actividad en debate</span></label>
+            </section>
+          </div>
+        </details>`, "options-control", node => {
+          const options = node.querySelector(".map-options");
+          options.open = false;
+          if (wideLayout) options.open = true;
+          node.querySelectorAll("input[data-magnitude-type]").forEach(input => {
+            const layer = magnitudeLayers[input.dataset.magnitudeType];
+            const group = series.find(item => item.type === input.dataset.magnitudeType);
+            input.checked = map.hasLayer(layer);
+            input.addEventListener("change", () => {
+              if (input.checked) map.addLayer(layer);
+              else map.removeLayer(layer);
+              group.enabled = input.checked;
+              refreshIntensityLayer();
+            });
+          });
+          node.querySelectorAll("input[data-magnitude-filter]").forEach(input => {
+            const group = series.find(item => item.type === input.dataset.magnitudeFilter);
+            const output = input.parentElement.querySelector("output");
+            const count = input.closest(".magnitude-series").querySelector(".magnitude-series-count");
+            input.style.accentColor = colorFor(group.maximum, group.minimum, group.maximum, group.colors);
+            input.addEventListener("input", () => {
+              const threshold = Number(input.value);
+              const visible = group.markers.filter(item => item.magnitude >= threshold);
+              magnitudeLayers[group.type].clearLayers();
+              visible.forEach(item => item.marker.addTo(magnitudeLayers[group.type]));
+              group.threshold = threshold;
+              refreshIntensityLayer();
+              output.value = format(threshold);
+              count.textContent = `${visible.length}/${group.events.length} eventos`;
+            });
+          });
+          const intensityInput = node.querySelector("input[data-intensity-layer]");
+          intensityInput.checked = map.hasLayer(intensityLayer);
+          intensityInput.addEventListener("change", () => {
+            if (intensityInput.checked) map.addLayer(intensityLayer);
+            else map.removeLayer(intensityLayer);
+          });
+          node.querySelectorAll("input[data-fault-layer]").forEach(input => {
+            const layer = faultLayers[input.dataset.faultLayer];
+            input.checked = map.hasLayer(layer);
+            input.addEventListener("change", () => {
+              if (input.checked) map.addLayer(layer);
+              else map.removeLayer(layer);
+            });
+          });
+        });
+        addControl("bottomleft", `<div class="attribution"><a href="https://www.ign.es/web/ign/portal/sis-catalogo-terremotos" target="_blank" rel="noopener noreferrer">Datos: IGN</a> | <a href="https://mapas.igme.es/gis/rest/services/BasesDatos/IGME_QAFI/MapServer" target="_blank" rel="noopener noreferrer">Fallas: IGME-CSIC (QAFI)</a> | <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">Mapa: © OpenStreetMap</a></div><div class="linkedin-banner"><a href="https://www.linkedin.com/in/draxus/" target="_blank" rel="noopener noreferrer">linkedin.com/in/draxus</a></div>`, "map-footer");
+      })
+      .catch(error => {
+        document.querySelector("#event-period").textContent = "Periodo no disponible";
+        document.querySelector("#event-summary").textContent = "No se pudo cargar el catálogo";
+        document.querySelector("#map").innerHTML = `<p style="margin:0;padding:2rem;color:#fff">No se pudo cargar el catálogo: ${error.message}.</p>`;
+      });
+  </script>
+</body>
+</html>

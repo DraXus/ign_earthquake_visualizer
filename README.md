@@ -25,7 +25,7 @@ Para activar el despliegue por primera vez, abre **Settings → Pages** en GitHu
 ### Actualización local
 
 ```powershell
-python -m pip install -r requirements-update.txt
+python -m pip install -r requirements.txt
 python scripts/fetch_ign_catalogue.py --output data/catalogue.csv
 python -m http.server 8000
 ```

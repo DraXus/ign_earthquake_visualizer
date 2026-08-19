@@ -170,9 +170,10 @@
       const column = name => headers.findIndex(header => header === name || header.startsWith(name));
       // Some IGN exports contain a malformed character in "Localización";
       // the shared prefix keeps location labels usable in those files too.
-      const latitude = column("latitud"), longitude = column("longitud"), magnitude = column("mag"), magnitudeType = column("tipo mag"), intensity = column("inten"), date = column("fecha"), time = column("hora"), location = column("localizaci");
+      const latitude = column("latitud"), longitude = column("longitud"), depth = column("prof"), magnitude = column("mag"), magnitudeType = column("tipo mag"), intensity = column("inten"), date = column("fecha"), time = column("hora"), location = column("localizaci");
       return rows.map(row => ({
         lat: Number(row[latitude].replace(",", ".")), lon: Number(row[longitude].replace(",", ".")),
+        depth: Number((row[depth] || "").replace(",", ".")),
         magnitude: Number(row[magnitude].replace(",", ".")), magnitudeType: row[magnitudeType] || "Sin especificar", intensity: parseIntensity(row[intensity]),
         date: row[date], time: row[time], location: row[location] || "Sin localización"
       })).filter(event => Number.isFinite(event.lat) && Number.isFinite(event.lon) && Number.isFinite(event.magnitude));
@@ -198,6 +199,20 @@
     function catalogueDate(value) {
       const [day, month, year] = value.split("/").map(Number);
       return new Date(Date.UTC(year, month - 1, day));
+    }
+    // IGN publishes Fecha/Hora in UTC. Keep the conversion explicit so the
+    // displayed date also changes when UTC crosses midnight locally.
+    function formatLocalDateTime(date, time) {
+      const [day, month, year] = date.split("/").map(Number);
+      const [hours, minutes, seconds] = time.split(":").map(Number);
+      const timestamp = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+      if (!Number.isFinite(timestamp.getTime())) return `${date} · ${time}`;
+      const formatter = new Intl.DateTimeFormat("es-ES", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hourCycle: "h23", timeZone: "Europe/Madrid"
+      });
+      return `${formatter.format(timestamp).replace(",", "")} (hora local)`;
     }
     function formatPeriod(events) {
       const dates = events.map(event => catalogueDate(event.date)).filter(date => Number.isFinite(date.getTime()));
@@ -260,7 +275,9 @@
                   fillColor, fillOpacity: .48
                 });
             const intensityText = event.intensity === null ? "" : `<br>Intensidad máx. EMS-98: <strong>${romanIntensity(event.intensity)}</strong>`;
-            marker.bindTooltip(`<strong>${escapeHTML(event.magnitudeType)} ${format(event.magnitude)}</strong>${intensityText}<br>${event.date} · ${event.time}<br>${escapeHTML(event.location)}`, { className: "quake-tooltip", direction: "top", offset: [0, -5] }).addTo(layer);
+            const depthText = Number.isFinite(event.depth) ? `<br>Profundidad: <strong>${format(event.depth)} km</strong>` : "";
+            const localDateTime = escapeHTML(formatLocalDateTime(event.date, event.time));
+            marker.bindTooltip(`<strong>${escapeHTML(event.magnitudeType)} ${format(event.magnitude)}</strong>${depthText}${intensityText}<br>${localDateTime}<br>${escapeHTML(event.location)}`, { className: "quake-tooltip", direction: "top", offset: [0, -5] }).addTo(layer);
             const intensityRing = event.intensity === null ? null : L.circleMarker([event.lat, event.lon], {
               pane: "intensity-rings", radius: group.type === "Mw" ? 18 : radius + 4,
               fill: false, color: intensityColor(event.intensity), weight: 2.5, opacity: .95,

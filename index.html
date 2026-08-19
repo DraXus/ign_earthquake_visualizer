@@ -4,6 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Actividad sísmica en Granada</title>
+  <meta name="description" content="Mapa interactivo de la actividad sísmica en Granada con datos del IGN y fallas cuaternarias de la base QAFI.">
+  <link rel="canonical" href="https://manuelmartinsalvador.es/ign_earthquake_visualizer/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:site_name" content="Actividad sísmica en Granada">
+  <meta property="og:title" content="Actividad sísmica en Granada">
+  <meta property="og:description" content="Explora en un mapa interactivo los terremotos registrados por el IGN y las fallas cuaternarias de Granada.">
+  <meta property="og:url" content="https://manuelmartinsalvador.es/ign_earthquake_visualizer/">
+  <meta property="og:image" content="https://manuelmartinsalvador.es/ign_earthquake_visualizer/assets/social-preview.png">
+  <meta property="og:image:secure_url" content="https://manuelmartinsalvador.es/ign_earthquake_visualizer/assets/social-preview.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Mapa de Granada con marcadores de actividad sísmica y fallas">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Actividad sísmica en Granada">
+  <meta name="twitter:description" content="Explora en un mapa interactivo los terremotos registrados por el IGN y las fallas cuaternarias de Granada.">
+  <meta name="twitter:image" content="https://manuelmartinsalvador.es/ign_earthquake_visualizer/assets/social-preview.png">
+  <meta name="twitter:image:alt" content="Mapa de Granada con marcadores de actividad sísmica y fallas">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <style>
     :root { color-scheme: dark; }
@@ -230,7 +251,7 @@
         if (!events.length) throw new Error("El catálogo no contiene eventos válidos");
         document.querySelector("#event-period").textContent = formatPeriod(events);
         const paletteFor = type => type === "Mw"
-          ? [[112, 28, 96], [255, 176, 0]]
+          ? [[255, 176, 0], [112, 28, 96]]
           : type === "mbLg" ? [[0, 83, 112], [0, 217, 255]] : [[90, 90, 90], [230, 230, 230]];
         const eventsByType = events.reduce((groups, event) => {
           (groups[event.magnitudeType] ||= []).push(event);
@@ -242,6 +263,10 @@
           const minimum = Math.min(...values), maximum = Math.max(...values);
           return { type, events: typeEvents, markers: [], minimum, maximum, threshold: minimum, enabled: true, colors: paletteFor(type) };
         }).sort((a, b) => b.events.length - a.events.length);
+        const magnitudeSizeRange = {
+          minimum: Math.min(...events.map(event => event.magnitude)),
+          maximum: Math.max(...events.map(event => event.magnitude))
+        };
         const intensityLayer = L.layerGroup().addTo(map);
         function refreshIntensityLayer() {
           intensityLayer.clearLayers();
@@ -258,7 +283,7 @@
           magnitudeLayers[group.type] = layer;
           group.events.forEach(event => {
             bounds.push([event.lat, event.lon]);
-            const radius = radiusFor(event.magnitude, group.minimum, group.maximum);
+            const radius = radiusFor(event.magnitude, magnitudeSizeRange.minimum, magnitudeSizeRange.maximum);
             const fillColor = colorFor(event.magnitude, group.minimum, group.maximum, group.colors);
             const marker = group.type === "Mw"
               ? L.marker([event.lat, event.lon], {
@@ -298,7 +323,7 @@
           const samples = [group.minimum, (group.minimum + group.maximum) / 2, group.maximum];
           return `<div class="magnitude-series">
             <label><input type="checkbox" data-magnitude-type="${escapeHTML(group.type)}" checked style="accent-color:${colorFor(group.maximum, group.minimum, group.maximum, group.colors)}"><span class="magnitude-series-name">${escapeHTML(group.type)}</span><span class="magnitude-series-count">${group.events.length} eventos</span></label>
-            <div class="magnitude-bubbles" aria-hidden="true">${samples.map(value => `<i class="magnitude-bubble ${group.type === "Mw" ? "mw" : ""}" style="width:${radiusFor(value, group.minimum, group.maximum) * (group.type === "Mw" ? 1.55 : 2)}px;height:${radiusFor(value, group.minimum, group.maximum) * (group.type === "Mw" ? 1.55 : 2)}px;background:${colorFor(value, group.minimum, group.maximum, group.colors)};opacity:${group.type === "Mw" ? .95 : .55}"></i>`).join("")}</div>
+            <div class="magnitude-bubbles" aria-hidden="true">${samples.map(value => `<i class="magnitude-bubble ${group.type === "Mw" ? "mw" : ""}" style="width:${radiusFor(value, magnitudeSizeRange.minimum, magnitudeSizeRange.maximum) * (group.type === "Mw" ? 1.55 : 2)}px;height:${radiusFor(value, magnitudeSizeRange.minimum, magnitudeSizeRange.maximum) * (group.type === "Mw" ? 1.55 : 2)}px;background:${colorFor(value, group.minimum, group.maximum, group.colors)};opacity:${group.type === "Mw" ? .95 : .55}"></i>`).join("")}</div>
             <div class="magnitude-values">${samples.map(value => `<span>${format(value)}</span>`).join("")}</div>
             <div class="magnitude-filter">
               <label for="magnitude-${escapeHTML(group.type)}">Magnitud mínima</label><output for="magnitude-${escapeHTML(group.type)}">${format(group.minimum)}</output>
@@ -312,7 +337,7 @@
           <div class="options-content">
             <section class="control-section"><h2>TIPO DE MAGNITUD · IGN</h2><div class="magnitude-legend">
               ${magnitudeLegend}
-              <p class="magnitude-note">Círculos: mbLg. Rombos con halo: Mw. El tamaño y el tono solo se comparan dentro de cada forma; mbLg y Mw no son directamente equivalentes.</p>
+              <p class="magnitude-note">Círculos: mbLg. Rombos con halo: Mw. El tamaño sigue un rango numérico común; el tono se compara dentro de cada forma. mbLg y Mw no son directamente equivalentes.</p>
             </div></section>
             <section class="control-section intensity-control"><h2>INTENSIDAD MÁXIMA · EMS-98</h2>
               <label><input type="checkbox" data-intensity-layer checked><span>Mostrar anillos</span><span class="magnitude-series-count">${intensityCount}/${events.length} eventos</span></label>

@@ -15,6 +15,8 @@ _site/
 *.png
 *.jpg
 *.jpeg
+!assets/
+!assets/social-preview.png
 
 # Editores y sistema operativo
 .vscode/

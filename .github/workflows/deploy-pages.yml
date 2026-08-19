@@ -38,8 +38,9 @@ jobs:
 
       - name: Build site and update catalogue
         run: |
-          mkdir -p _site/data
+          mkdir -p _site/assets _site/data
           cp index.html _site/index.html
+          cp assets/social-preview.png _site/assets/social-preview.png
           touch _site/.nojekyll
           python scripts/fetch_ign_catalogue.py --output _site/data/catalogue.csv
 
